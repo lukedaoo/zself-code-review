@@ -1,0 +1,135 @@
+#!/usr/bin/env python3
+import argparse
+import hashlib
+import os
+import subprocess
+import sys
+import time
+
+from scr_git import OUT_DIR, git
+from scr_report import LIVE_SUFFIX
+
+RENDER_SCRIPT = os.path.join(os.path.dirname(os.path.realpath(__file__)), "zcode-review")
+DEFAULT_INTERVAL_SECONDS = 1.0
+DEBOUNCE_SECONDS = 0.4
+STATUS_PREFIX_LENGTH = 3
+GONE = b"gone"
+
+USAGE = """\
+Usage:
+  ./zcode-review-watch <file> [--folder DIR] [--base REF] [--commits]
+                              [--interval SEC] [--no-live]
+
+<file> is the HTML report to (re)write, e.g. review.html. Open it once in a
+browser; with live reload (default) it refreshes itself after every re-render.
+Press Ctrl+C to stop.
+
+Polling (stdlib only, no inotify): every --interval seconds a cheap fingerprint
+of HEAD + `git status` + each changed file's mtime/size is compared; only when it
+changes is zcode-review run again (after a short debounce).
+"""
+
+
+def read_git(repo, *args):
+    return git(repo, *args, check=False)
+
+
+def status_path(token):
+    has_status = len(token) > STATUS_PREFIX_LENGTH and token[2] == " "
+    return token[STATUS_PREFIX_LENGTH:] if has_status else token
+
+
+def fingerprint(repo, ignored):
+    digest = hashlib.sha1(read_git(repo, "rev-parse", "HEAD").encode())
+    status = read_git(repo, "status", "--porcelain=v1", "-z", "--untracked-files=all")
+    for token in filter(None, status.split("\0")):
+        digest.update(token.encode())
+        path = status_path(token)
+        full_path = os.path.join(repo, path)
+        if path.startswith(OUT_DIR + "/") or os.path.abspath(full_path) in ignored:
+            continue
+        try:
+            stat = os.stat(full_path)
+            digest.update(f"{stat.st_mtime_ns}:{stat.st_size}".encode())
+        except OSError:
+            digest.update(GONE)
+    return digest.hexdigest()
+
+
+def wait_until_settled(repo, ignored, current):
+    while True:
+        time.sleep(DEBOUNCE_SECONDS)
+        latest = fingerprint(repo, ignored)
+        if latest == current:
+            return current
+        current = latest
+
+
+def render(command):
+    started = time.time()
+    result = subprocess.run(command, capture_output=True, text=True)
+    stamp = time.strftime("%H:%M:%S")
+    if result.returncode == 0:
+        summary = result.stdout.strip().splitlines()[-1]
+        print(f"[{stamp}] {summary}  ({time.time() - started:.1f}s)", flush=True)
+        return
+    print(f"[{stamp}] render failed (still watching):\n{result.stderr.strip() or result.stdout.strip()}",
+          file=sys.stderr, flush=True)
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="Watch git changes and re-render the review into one file.",
+                                     epilog=USAGE, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("file", help="HTML report to (re)write")
+    parser.add_argument("--folder", default=".", help="git repo folder (default: current)")
+    parser.add_argument("--base", help="compare against merge-base(BASE, HEAD)")
+    parser.add_argument("--commits", action="store_true", help="add a tab per commit")
+    parser.add_argument("--interval", type=float, default=DEFAULT_INTERVAL_SECONDS,
+                        help="poll interval in seconds (default 1)")
+    parser.add_argument("--no-live", action="store_true", help="don't make the page auto-reload")
+    return parser.parse_args()
+
+
+def find_repo(folder):
+    result = subprocess.run(["git", "-C", os.path.abspath(folder), "rev-parse", "--show-toplevel"],
+                            capture_output=True, text=True)
+    if result.returncode != 0:
+        sys.exit(f"{folder} is not inside a git repository.")
+    return result.stdout.strip()
+
+
+def render_command(args, repo, output):
+    command = [sys.executable, RENDER_SCRIPT, repo, "--output", output]
+    if args.base:
+        command += ["--base", args.base]
+    if args.commits:
+        command.append("--commits")
+    if not args.no_live:
+        command.append("--live")
+    return command
+
+
+def main():
+    args = parse_args()
+    output = os.path.abspath(args.file)
+    repo = find_repo(args.folder)
+    command = render_command(args, repo, output)
+    ignored = {output, output + LIVE_SUFFIX}
+
+    print(f"Watching {repo}\n  report: {output}  (Ctrl+C to stop)", flush=True)
+    render(command)
+    last = fingerprint(repo, ignored)
+    try:
+        while True:
+            time.sleep(args.interval)
+            current = fingerprint(repo, ignored)
+            if current == last:
+                continue
+            last = wait_until_settled(repo, ignored, current)
+            render(command)
+    except KeyboardInterrupt:
+        print("\nStopped.")
+
+
+if __name__ == "__main__":
+    main()

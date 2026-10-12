@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="scr-snapshot" content="{{snapshot}}">
+    <title>{{title}}</title>
+    {{css}}
+</head>
+
+<body data-layout="unified">
+
+    <header class="top">
+        <h1>Code review · {{repo}} @ {{branch}} ({{head}})</h1>
+        <div class="meta">
+            {{files}} files changed · <b class="p">+{{adds}}</b> <b class="m">−{{dels}}</b>
+            · {{compare}} · generated {{generated}}
+        </div>
+    </header>
+
+    {{warnings}}
+
+    <div class="toolbar">
+        <div class="seg" role="group" aria-label="Layout">
+            <button data-layout="unified" class="on">Unified</button>
+            <button data-layout="split">Split</button>
+        </div>
+        <input id="q" type="search" placeholder="Filter files / search code ( / )" autocomplete="off">
+        <span id="hits" class="muted"></span>
+        <span class="chips">{{statuses}}</span>
+        <button id="f-unviewed" class="chip">unviewed</button>
+        <button id="f-commented" class="chip">with notes</button>
+        <button id="collapse-all" class="chip">collapse all</button>
+        <button id="expand-all" class="chip">expand all</button>
+        <span class="grow"></span>
+        <select id="theme" class="theme" aria-label="Color theme" title="Color theme">
+            <option value="auto">Theme: auto</option>
+            <option value="light">GitHub light</option>
+            <option value="dark">GitHub dark</option>
+            <option value="gruber">Gruber Darker</option>
+            <option value="solarized">Solarized light</option>
+            <option value="monokai">Monokai</option>
+        </select>
+        <span id="live" class="live" hidden>● live</span>
+        <span id="progress" class="muted"></span>
+        <button id="notes-btn" class="primary">Notes <span id="notes-count">0</span></button>
+    </div>
+
+    <div class="layout">
+        <nav id="nav">{{nav}}</nav>
+        <main>
+            {{tabs}}
+            {{views}}
+        </main>
+    </div>
+
+    <aside id="notes" hidden>
+        <div class="nhead">
+            <b>Review notes</b>
+            <span class="grow"></span>
+            <button id="notes-copy">Copy .md</button>
+            <button id="notes-dl">Download .md</button>
+            <button id="notes-clear">Clear</button>
+            <button id="notes-close" aria-label="Close">✕</button>
+        </div>
+        <p class="muted small">Click a line number in the diff to add a note. Notes live in this browser
+            (localStorage) — export them to keep or paste into your editor.</p>
+        <ul id="notes-list"></ul>
+    </aside>
+
+    {{data}}
+    {{js}}
+</body>
+
+</html>

@@ -1,0 +1,97 @@
+#!/usr/bin/env python3
+import argparse
+import os
+import sys
+
+from scr_git import base_tree, git, has_commits, resolve_since, snapshot_tree
+from scr_html import load_template
+from scr_report import (ALL_VIEW, LIVE_SUFFIX, build_meta, build_views, default_output,
+                        render_page, report_stamp, write_atomic)
+
+NO_COMMITS = "nocommits"
+
+USAGE = """\
+Usage:
+  ./zcode-review [folder]                 working tree vs HEAD
+  ./zcode-review --base main              working tree vs merge-base(main, HEAD)
+  ./zcode-review --commits [--base main]  also add one tab per commit
+  ./zcode-review --since last             only what changed since the previous report
+  ./zcode-review --since <report.html|tree-ish>
+  ./zcode-review --output out.html [--live]  fixed output path (see zcode-review-watch)
+
+Output: <repo>/self-code-review/<YYYY-MM-DD>/<YYYY-MM-DD>_<HHMM>_<short_hash>[_since][_N].html
+The report is a single self-contained HTML file (templates/ is inlined).
+Nothing is ever committed; a git *tree object* of the working state is
+written (never referenced) so `--since` can diff against it later.
+"""
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="Render local git changes as a GitHub-style HTML review.",
+                                     epilog=USAGE, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("folder", nargs="?", default=".", help="git repo folder (default: current)")
+    parser.add_argument("--base", help="compare against merge-base(BASE, HEAD) instead of HEAD")
+    parser.add_argument("--commits", action="store_true",
+                        help="add a tab per commit in BASE..HEAD (BASE auto-detected if omitted)")
+    parser.add_argument("--since", metavar="X",
+                        help="only changes since a previous pass: 'last', a report .html, or a tree-ish")
+    parser.add_argument("--output", metavar="FILE",
+                        help="write the report to exactly this file (overwritten each run)")
+    parser.add_argument("--live", action="store_true",
+                        help="make the report reload itself when FILE is re-rendered (use with --output)")
+    return parser.parse_args()
+
+
+def output_excludes(repo, output):
+    if not output or os.path.commonpath([repo, output]) != repo:
+        return []
+    relative = os.path.relpath(output, repo)
+    return [relative, relative + LIVE_SUFFIX]
+
+
+def resolve_range(repo, args):
+    if args.since:
+        return resolve_since(repo, args.since)
+    if args.base:
+        merge_base = git(repo, "merge-base", args.base, "HEAD").strip()
+        return merge_base, f"working tree vs merge-base({args.base}, HEAD) = {merge_base[:8]}"
+    if not has_commits(repo):
+        return base_tree(repo), "working tree vs empty tree (no commits yet)"
+    return "HEAD", "working tree vs HEAD"
+
+
+def main():
+    args = parse_args()
+    repo = git(os.path.abspath(args.folder), "rev-parse", "--show-toplevel").strip()
+    head = git(repo, "rev-parse", "--short", "HEAD").strip() if has_commits(repo) else NO_COMMITS
+    branch = git(repo, "symbolic-ref", "--short", "HEAD").strip()
+    output = os.path.abspath(args.output) if args.output else None
+
+    new_tree = snapshot_tree(repo, output_excludes(repo, output))
+    old_tree, compare = resolve_range(repo, args)
+    diff_text = git(repo, "diff", "--no-color", "-M", "-U3", old_tree, new_tree)
+    views, built = build_views(repo, diff_text, args.since, args.base, args.commits,
+                               load_template("file.html"))
+
+    meta = build_meta(repo, branch, head, args.base, compare, views)
+    stamp = report_stamp(head, compare, views, built)
+    if args.live:
+        if not output:
+            sys.exit("--live needs --output FILE.")
+        meta["stamp"], meta["live"] = stamp, os.path.basename(output) + LIVE_SUFFIX
+
+    page = render_page(new_tree, meta, views, built)
+    if output:
+        os.makedirs(os.path.dirname(output), exist_ok=True)
+    else:
+        output = default_output(repo, head, args.since)
+    write_atomic(output, page)
+    if args.live:
+        write_atomic(output + LIVE_SUFFIX, f'window.__SCR_STAMP="{stamp}";\n')
+
+    overview = built[ALL_VIEW]
+    print(f"{overview.files} file(s), {len(views) - 1} commit tab(s) -> {output}")
+
+
+if __name__ == "__main__":
+    main()

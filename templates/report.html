@@ -21,6 +21,9 @@
         {{warnings}}
 
         <div class="toolbar">
+            <button id="nav-toggle" class="chip on" title="Toggle file list">
+                Files
+            </button>
             <div class="seg" role="group" aria-label="Layout">
                 <button data-layout="unified" class="on">Unified</button>
                 <button data-layout="split">Split</button>
@@ -65,6 +68,10 @@
             <nav id="nav">{{nav}}</nav>
             <main>{{tabs}} {{views}}</main>
         </div>
+
+        <button id="to-top" aria-label="Go to top" title="Go to top" hidden>
+            ↑
+        </button>
 
         <aside id="notes" hidden>
             <div class="nhead">

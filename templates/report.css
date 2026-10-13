@@ -357,6 +357,29 @@ nav {
     font-size: 12px;
 }
 
+body[data-nav="hidden"] nav {
+    display: none;
+}
+
+#to-top {
+    position: fixed;
+    right: 20px;
+    bottom: 20px;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    border: 1px solid var(--bd);
+    background: var(--link);
+    color: var(--on-link);
+    font-size: 18px;
+    cursor: pointer;
+    z-index: 20;
+}
+
+#to-top[hidden] {
+    display: none;
+}
+
 .navlink {
     display: flex;
     gap: 6px;

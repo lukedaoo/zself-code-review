@@ -13,7 +13,11 @@
         layout: "scr:layout",
         theme: "scr:theme",
         ignored: "scr:ignored",
+        nav: "scr:nav",
     };
+    const NAV_SHOWN = "shown";
+    const NAV_HIDDEN = "hidden";
+    const TO_TOP_SCROLL_PX = 400;
     const UNIFIED_COLUMNS = 3;
     const SPLIT_COLUMNS = 4;
     const EXPAND_STEP = 20;
@@ -162,6 +166,40 @@
         restore() {
             this.set(storage.read(STORAGE_KEY.theme, THEME_AUTO));
         },
+    };
+
+    const navPanel = {
+        set(state) {
+            document.body.dataset.nav = state;
+            find("#nav-toggle").classList.toggle("on", state === NAV_SHOWN);
+            storage.write(STORAGE_KEY.nav, state);
+        },
+
+        toggle() {
+            this.set(
+                document.body.dataset.nav === NAV_HIDDEN
+                    ? NAV_SHOWN
+                    : NAV_HIDDEN
+            );
+        },
+
+        restore() {
+            this.set(storage.read(STORAGE_KEY.nav, NAV_SHOWN));
+        },
+    };
+
+    const bindToTop = () => {
+        const button = find("#to-top");
+        button.addEventListener("click", () =>
+            window.scrollTo({ top: 0, behavior: "smooth" })
+        );
+        window.addEventListener(
+            "scroll",
+            () => {
+                button.hidden = window.scrollY < TO_TOP_SCROLL_PX;
+            },
+            { passive: true }
+        );
     };
 
     const views = {
@@ -813,6 +851,8 @@
         }
         document.addEventListener("click", onDocumentClick);
         document.addEventListener("change", onDocumentChange);
+        find("#nav-toggle").addEventListener("click", () => navPanel.toggle());
+        bindToTop();
         bindFilters();
         bindSearch();
         bindNotesPanel();
@@ -855,6 +895,7 @@
         ignored.load();
         layout.restore();
         theme.restore();
+        navPanel.restore();
         viewed.collapseInitial();
         bindEvents();
         startLiveReload();

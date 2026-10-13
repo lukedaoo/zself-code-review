@@ -69,7 +69,7 @@ def wait_until_settled(repo, ignored, current):
 
 def render(command):
     started = time.time()
-    result = subprocess.run(command, capture_output=True, text=True)
+    result = subprocess.run(command, capture_output=True, text=True, check=False)
     stamp = time.strftime("%H:%M:%S")
     if result.returncode == 0:
         summary = result.stdout.strip().splitlines()[-1]
@@ -111,6 +111,7 @@ def find_repo(folder):
         ["git", "-C", os.path.abspath(folder), "rev-parse", "--show-toplevel"],
         capture_output=True,
         text=True,
+        check=False,
     )
     if result.returncode != 0:
         sys.exit(f"{folder} is not inside a git repository.")

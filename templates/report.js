@@ -8,7 +8,12 @@
     const ALL_VIEW = "all";
     const LAYOUT_UNIFIED = "unified";
     const THEME_AUTO = "auto";
-    const STORAGE_KEY = { review: "scr:" + META.id, layout: "scr:layout", theme: "scr:theme" };
+    const STORAGE_KEY = {
+        review: "scr:" + META.id,
+        layout: "scr:layout",
+        theme: "scr:theme",
+        ignored: "scr:ignored",
+    };
     const UNIFIED_COLUMNS = 3;
     const SPLIT_COLUMNS = 4;
     const EXPAND_STEP = 20;
@@ -18,27 +23,43 @@
     const LIVE_POLL_MS = 2000;
     const COPY_FEEDBACK_MS = 1500;
     const TEXT_INPUT_TAGS = /INPUT|TEXTAREA/;
-    const HTML_ESCAPES = { "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;" };
+    const HTML_ESCAPES = {
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+    };
 
     const find = (selector, root = document) => root.querySelector(selector);
-    const findAll = (selector, root = document) => [...root.querySelectorAll(selector)];
-    const escapeHtml = text => String(text).replace(/[&<>"]/g, char => HTML_ESCAPES[char]);
+    const findAll = (selector, root = document) => [
+        ...root.querySelectorAll(selector),
+    ];
+    const escapeHtml = (text) =>
+        String(text).replace(/[&<>"]/g, (char) => HTML_ESCAPES[char]);
 
-    const flash = element => {
+    const flash = (element) => {
         element.classList.remove("flash");
         void element.offsetWidth;
         element.classList.add("flash");
     };
 
-    const columnsOf = row =>
-        row.closest("table").classList.contains("split") ? SPLIT_COLUMNS : UNIFIED_COLUMNS;
+    const columnsOf = (row) =>
+        row.closest("table").classList.contains("split")
+            ? SPLIT_COLUMNS
+            : UNIFIED_COLUMNS;
 
     const storage = {
         read(key, fallback) {
-            try { return localStorage.getItem(key) || fallback; } catch (error) { return fallback; }
+            try {
+                return localStorage.getItem(key) || fallback;
+            } catch (error) {
+                return fallback;
+            }
         },
         write(key, value) {
-            try { localStorage.setItem(key, value); } catch (error) { }
+            try {
+                localStorage.setItem(key, value);
+            } catch (error) {}
         },
     };
 
@@ -48,32 +69,76 @@
 
         load() {
             try {
-                const saved = JSON.parse(storage.read(STORAGE_KEY.review, "{}"));
+                const saved = JSON.parse(
+                    storage.read(STORAGE_KEY.review, "{}")
+                );
                 this.notes = saved.comments || this.notes;
                 this.viewed = saved.viewed || this.viewed;
-            } catch (error) { }
+            } catch (error) {}
         },
 
         save() {
-            storage.write(STORAGE_KEY.review, JSON.stringify({ comments: this.notes, viewed: this.viewed }));
+            storage.write(
+                STORAGE_KEY.review,
+                JSON.stringify({ comments: this.notes, viewed: this.viewed })
+            );
+        },
+    };
+
+    const ignored = {
+        paths: {},
+
+        load() {
+            try {
+                this.paths =
+                    JSON.parse(storage.read(STORAGE_KEY.ignored, "{}")) || {};
+            } catch (error) {}
+        },
+
+        has(section) {
+            return !!this.paths[section.dataset.path];
+        },
+
+        set(section, isIgnored) {
+            if (isIgnored) {
+                this.paths[section.dataset.path] = true;
+            } else {
+                delete this.paths[section.dataset.path];
+            }
+            storage.write(STORAGE_KEY.ignored, JSON.stringify(this.paths));
+        },
+
+        updateCount() {
+            const count = sections.filter(
+                (section) =>
+                    section.dataset.view === currentView && this.has(section)
+            ).length;
+            find("#ignored-count").textContent = count;
         },
     };
 
     const sections = findAll("section.file");
     let currentView = ALL_VIEW;
 
-    const fileKeyOf = section => section.dataset.fkey;
-    const sectionFor = fileKey => sections.find(section => fileKeyOf(section) === fileKey);
-    const sectionsInView = () => sections.filter(section => section.dataset.view === currentView);
-    const navLinkFor = section => findAll(".navlink").find(link => link.dataset.fkey === fileKeyOf(section));
+    const fileKeyOf = (section) => section.dataset.fkey;
+    const sectionFor = (fileKey) =>
+        sections.find((section) => fileKeyOf(section) === fileKey);
+    const sectionsInView = () =>
+        sections.filter((section) => section.dataset.view === currentView);
+    const navLinkFor = (section) =>
+        findAll(".navlink").find(
+            (link) => link.dataset.fkey === fileKeyOf(section)
+        );
     const activeLayout = () => document.body.dataset.layout;
-    const activeDiff = section => find(".diff." + activeLayout(), section);
+    const activeDiff = (section) => find(".diff." + activeLayout(), section);
     const rowFor = (lineKey, root) => find(`tr[data-k~="${lineKey}"]`, root);
 
     const layout = {
         set(name) {
             document.body.dataset.layout = name;
-            findAll(".seg button").forEach(button => button.classList.toggle("on", button.dataset.layout === name));
+            findAll(".seg button").forEach((button) =>
+                button.classList.toggle("on", button.dataset.layout === name)
+            );
             storage.write(STORAGE_KEY.layout, name);
             search.markHits();
         },
@@ -102,8 +167,12 @@
     const views = {
         show(id) {
             currentView = id;
-            findAll(".view, .navlist").forEach(element => element.hidden = element.dataset.view !== id);
-            findAll(".tab").forEach(tab => tab.classList.toggle("active", tab.dataset.view === id));
+            findAll(".view, .navlist").forEach(
+                (element) => (element.hidden = element.dataset.view !== id)
+            );
+            findAll(".tab").forEach((tab) =>
+                tab.classList.toggle("active", tab.dataset.view === id)
+            );
             filters.apply();
         },
     };
@@ -112,6 +181,7 @@
         syncSection(section) {
             const isViewed = !!review.viewed[fileKeyOf(section)];
             find(".viewed-cb", section).checked = isViewed;
+            find(".ignore-cb", section).checked = ignored.has(section);
             const link = navLinkFor(section);
             if (link) link.classList.toggle("done", isViewed);
         },
@@ -129,8 +199,12 @@
         },
 
         updateProgress() {
-            const inView = sectionsInView();
-            const count = inView.filter(section => review.viewed[fileKeyOf(section)]).length;
+            const inView = sectionsInView().filter(
+                (section) => !ignored.has(section)
+            );
+            const count = inView.filter(
+                (section) => review.viewed[fileKeyOf(section)]
+            ).length;
             find("#progress").textContent = `Viewed ${count}/${inView.length}`;
         },
 
@@ -138,7 +212,8 @@
             for (const section of sections) {
                 this.syncSection(section);
                 const isGenerated = section.dataset.generated === "1";
-                if (review.viewed[fileKeyOf(section)] || isGenerated) section.classList.add("collapsed");
+                if (review.viewed[fileKeyOf(section)] || isGenerated)
+                    section.classList.add("collapsed");
             }
         },
     };
@@ -153,18 +228,25 @@
         },
 
         inSection(section) {
-            return Object.values(review.notes).filter(note => note.fkey === fileKeyOf(section));
+            return Object.values(review.notes).filter(
+                (note) => note.fkey === fileKeyOf(section)
+            );
         },
 
         sorted() {
-            const byLine = (a, b) => a.path.localeCompare(b.path) || (+a.key.slice(1)) - (+b.key.slice(1));
+            const byLine = (a, b) =>
+                a.path.localeCompare(b.path) ||
+                +a.key.slice(1) - +b.key.slice(1);
             return Object.values(review.notes).sort(byLine);
         },
 
         lineText(row, lineKey) {
-            const numberCell = row.querySelector(`td.ln[data-key="${lineKey}"]`);
+            const numberCell = row.querySelector(
+                `td.ln[data-key="${lineKey}"]`
+            );
             let cell = numberCell && numberCell.nextElementSibling;
-            while (cell && !cell.classList.contains("code")) cell = cell.nextElementSibling;
+            while (cell && !cell.classList.contains("code"))
+                cell = cell.nextElementSibling;
             const content = cell && cell.querySelector(".cc");
             return content ? content.textContent : "";
         },
@@ -173,21 +255,28 @@
             const outdatedTag = isOutdated
                 ? `<span class="tag-out" title="The line text differs from when the note was written">outdated?</span>`
                 : "";
-            return `<tr class="cmt"><td colspan="${columns}"><div class="cbox${note.done ? " done" : ""}" data-ck="${escapeHtml(note.ck)}">` +
+            return (
+                `<tr class="cmt"><td colspan="${columns}"><div class="cbox${note.done ? " done" : ""}" data-ck="${escapeHtml(note.ck)}">` +
                 `<input type="checkbox" class="cdone" title="Mark as addressed"${note.done ? " checked" : ""}>` +
                 `<div class="ctext">${escapeHtml(note.text)}</div>` +
                 outdatedTag +
-                `<span class="cact"><button data-act="edit">Edit</button><button data-act="del">Delete</button></span></div></td></tr>`;
+                `<span class="cact"><button data-act="edit">Edit</button><button data-act="del">Delete</button></span></div></td></tr>`
+            );
         },
 
         renderIn(section) {
-            findAll("tr.cmt", section).forEach(row => row.remove());
+            findAll("tr.cmt", section).forEach((row) => row.remove());
             for (const note of this.inSection(section)) {
                 for (const table of findAll("table.diff", section)) {
                     const row = rowFor(note.key, table);
                     if (!row) continue;
-                    const isOutdated = this.lineText(row, note.key).trim() !== note.snippet.trim();
-                    row.insertAdjacentHTML("afterend", this.rowHtml(note, columnsOf(row), isOutdated));
+                    const isOutdated =
+                        this.lineText(row, note.key).trim() !==
+                        note.snippet.trim();
+                    row.insertAdjacentHTML(
+                        "afterend",
+                        this.rowHtml(note, columnsOf(row), isOutdated)
+                    );
                 }
             }
         },
@@ -205,12 +294,14 @@
         },
 
         openEditor(section, row, lineKey) {
-            findAll("tr.cedit").forEach(editorRow => editorRow.remove());
+            findAll("tr.cedit").forEach((editorRow) => editorRow.remove());
             const id = this.idFor(section, lineKey);
             const existing = review.notes[id];
-            row.insertAdjacentHTML("afterend",
+            row.insertAdjacentHTML(
+                "afterend",
                 `<tr class="cedit"><td colspan="${columnsOf(row)}"><textarea placeholder="Note for ${this.label(lineKey)}… (Ctrl+Enter to save, Esc to cancel)"></textarea>` +
-                `<div class="row"><button class="save">Save</button><button class="cancel">Cancel</button></div></td></tr>`);
+                    `<div class="row"><button class="save">Save</button><button class="cancel">Cancel</button></div></td></tr>`
+            );
 
             const editorRow = row.nextElementSibling;
             const textarea = find("textarea", editorRow);
@@ -222,9 +313,17 @@
                 const text = textarea.value.trim();
                 if (text) {
                     review.notes[id] = {
-                        ck: id, fkey: fileKeyOf(section), view: section.dataset.view, path: section.dataset.path,
-                        key: lineKey, text, done: existing ? existing.done : false,
-                        snippet: this.lineText(row, lineKey).slice(0, MAX_SNIPPET_LENGTH),
+                        ck: id,
+                        fkey: fileKeyOf(section),
+                        view: section.dataset.view,
+                        path: section.dataset.path,
+                        key: lineKey,
+                        text,
+                        done: existing ? existing.done : false,
+                        snippet: this.lineText(row, lineKey).slice(
+                            0,
+                            MAX_SNIPPET_LENGTH
+                        ),
                     };
                 } else {
                     delete review.notes[id];
@@ -235,9 +334,13 @@
 
             find(".save", editorRow).onclick = commit;
             find(".cancel", editorRow).onclick = close;
-            textarea.onkeydown = event => {
+            textarea.onkeydown = (event) => {
                 if (event.key === "Escape") close();
-                else if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) commit();
+                else if (
+                    event.key === "Enter" &&
+                    (event.ctrlKey || event.metaKey)
+                )
+                    commit();
             };
         },
 
@@ -256,10 +359,14 @@
         },
 
         clearAll() {
-            if (!Object.keys(review.notes).length || !confirm("Delete all notes for this review?")) return;
+            if (
+                !Object.keys(review.notes).length ||
+                !confirm("Delete all notes for this review?")
+            )
+                return;
             review.notes = {};
             review.save();
-            sections.forEach(section => this.renderIn(section));
+            sections.forEach((section) => this.renderIn(section));
             notesPanel.render();
             filters.apply();
         },
@@ -269,13 +376,17 @@
         render() {
             const all = notes.sorted();
             find("#notes-count").textContent = all.length;
-            find("#notes-list").innerHTML = all.map(note =>
-                `<li class="nitem${note.done ? " done" : ""}" data-ck="${escapeHtml(note.ck)}">` +
-                `<input type="checkbox" class="ndone"${note.done ? " checked" : ""}> ` +
-                `<a href="#" data-goto="1" data-view="${escapeHtml(note.view)}" data-fkey="${escapeHtml(note.fkey)}" data-key="${note.key}">${escapeHtml(note.path)}:${notes.label(note.key)}</a>` +
-                ` <span class="nact"><button data-act="ndel">delete</button></span>` +
-                `<code>${escapeHtml(note.snippet)}</code><div class="ntext">${escapeHtml(note.text)}</div></li>`).join("") ||
-                `<li class="muted small">No notes yet.</li>`;
+            find("#notes-list").innerHTML =
+                all
+                    .map(
+                        (note) =>
+                            `<li class="nitem${note.done ? " done" : ""}" data-ck="${escapeHtml(note.ck)}">` +
+                            `<input type="checkbox" class="ndone"${note.done ? " checked" : ""}> ` +
+                            `<a href="#" data-goto="1" data-view="${escapeHtml(note.view)}" data-fkey="${escapeHtml(note.fkey)}" data-key="${note.key}">${escapeHtml(note.path)}:${notes.label(note.key)}</a>` +
+                            ` <span class="nact"><button data-act="ndel">delete</button></span>` +
+                            `<code>${escapeHtml(note.snippet)}</code><div class="ntext">${escapeHtml(note.text)}</div></li>`
+                    )
+                    .join("") || `<li class="muted small">No notes yet.</li>`;
         },
 
         toMarkdown() {
@@ -283,20 +394,29 @@
             let lastFileKey = null;
             for (const note of notes.sorted()) {
                 if (note.fkey !== lastFileKey) {
-                    const view = META.views.find(candidate => candidate.id === note.view);
-                    const commitLabel = note.view !== ALL_VIEW ? `  _(commit ${view ? view.label : note.view})_` : "";
+                    const view = META.views.find(
+                        (candidate) => candidate.id === note.view
+                    );
+                    const commitLabel =
+                        note.view !== ALL_VIEW
+                            ? `  _(commit ${view ? view.label : note.view})_`
+                            : "";
                     markdown += `\n## ${note.path}${commitLabel}\n`;
                     lastFileKey = note.fkey;
                 }
                 const snippet = note.snippet.trim().replace(/`/g, "'");
-                const body = note.text.split("\n").map(line => "  " + line).join("\n");
+                const body = note.text
+                    .split("\n")
+                    .map((line) => "  " + line)
+                    .join("\n");
                 markdown += `\n- [${note.done ? "x" : " "}] **${notes.label(note.key)}** \`${snippet}\`\n${body}\n`;
             }
             return markdown;
         },
 
         copyText(text) {
-            if (navigator.clipboard && window.isSecureContext) return navigator.clipboard.writeText(text);
+            if (navigator.clipboard && window.isSecureContext)
+                return navigator.clipboard.writeText(text);
             const textarea = document.createElement("textarea");
             textarea.value = text;
             document.body.appendChild(textarea);
@@ -308,13 +428,18 @@
         copyMarkdown(button) {
             Promise.resolve(this.copyText(this.toMarkdown())).then(() => {
                 button.textContent = "Copied ✓";
-                setTimeout(() => button.textContent = "Copy .md", COPY_FEEDBACK_MS);
+                setTimeout(
+                    () => (button.textContent = "Copy .md"),
+                    COPY_FEEDBACK_MS
+                );
             });
         },
 
         downloadMarkdown() {
             const link = document.createElement("a");
-            link.href = URL.createObjectURL(new Blob([this.toMarkdown()], { type: "text/markdown" }));
+            link.href = URL.createObjectURL(
+                new Blob([this.toMarkdown()], { type: "text/markdown" })
+            );
             link.download = `review-notes-${META.head}.md`;
             link.click();
             URL.revokeObjectURL(link.href);
@@ -366,7 +491,9 @@
             const allButton = find("[data-mode=all]", gapRow);
             if (allButton) allButton.textContent = "↕ " + hidden;
             if (hidden <= EXPAND_STEP) {
-                findAll("[data-mode=top],[data-mode=bottom]", gapRow).forEach(button => button.remove());
+                findAll("[data-mode=top],[data-mode=bottom]", gapRow).forEach(
+                    (button) => button.remove()
+                );
             }
         },
 
@@ -380,16 +507,33 @@
             const end = +gapRow.dataset.e;
             const offset = +gapRow.dataset.off;
             const mode = button.dataset.mode;
-            const first = mode === "bottom" ? Math.max(start, end - EXPAND_STEP + 1) : start;
-            const last = mode === "top" ? Math.min(end, start + EXPAND_STEP - 1) : end;
+            const first =
+                mode === "bottom"
+                    ? Math.max(start, end - EXPAND_STEP + 1)
+                    : start;
+            const last =
+                mode === "top" ? Math.min(end, start + EXPAND_STEP - 1) : end;
 
-            for (const row of findAll(`tr[data-gid="${gapRow.dataset.gid}"]`, section)) {
-                const isSplit = row.closest("table").classList.contains("split");
+            for (const row of findAll(
+                `tr[data-gid="${gapRow.dataset.gid}"]`,
+                section
+            )) {
+                const isSplit = row
+                    .closest("table")
+                    .classList.contains("split");
                 let html = "";
                 for (let lineNo = first; lineNo <= last; lineNo++) {
-                    html += this.rowHtml(isSplit, lineNo, lineNo + offset, source[lineNo - 1]);
+                    html += this.rowHtml(
+                        isSplit,
+                        lineNo,
+                        lineNo + offset,
+                        source[lineNo - 1]
+                    );
                 }
-                row.insertAdjacentHTML(mode === "bottom" ? "afterend" : "beforebegin", html);
+                row.insertAdjacentHTML(
+                    mode === "bottom" ? "afterend" : "beforebegin",
+                    html
+                );
                 this.shrinkGap(row, mode, first, last);
             }
 
@@ -403,6 +547,7 @@
         statuses: new Set(),
         unviewedOnly: false,
         commentedOnly: false,
+        ignoredOnly: false,
 
         normalizedQuery() {
             return this.query.trim().toLowerCase();
@@ -416,12 +561,22 @@
 
         accepts(section, query) {
             if (section.dataset.view !== currentView) return false;
-            if (this.statuses.size && !this.statuses.has(section.dataset.status)) return false;
-            if (this.unviewedOnly && review.viewed[fileKeyOf(section)]) return false;
-            if (this.commentedOnly && !notes.inSection(section).length) return false;
+            if (ignored.has(section) !== this.ignoredOnly) return false;
+            if (
+                this.statuses.size &&
+                !this.statuses.has(section.dataset.status)
+            )
+                return false;
+            if (this.unviewedOnly && review.viewed[fileKeyOf(section)])
+                return false;
+            if (this.commentedOnly && !notes.inSection(section).length)
+                return false;
             if (!query) return true;
-            return section.dataset.path.toLowerCase().includes(query) ||
-                (query.length >= MIN_QUERY_LENGTH && search.sectionText(section).includes(query));
+            return (
+                section.dataset.path.toLowerCase().includes(query) ||
+                (query.length >= MIN_QUERY_LENGTH &&
+                    search.sectionText(section).includes(query))
+            );
         },
 
         apply() {
@@ -434,6 +589,7 @@
             }
             search.markHits();
             viewed.updateProgress();
+            ignored.updateCount();
         },
     };
 
@@ -444,7 +600,9 @@
 
         sectionText(section) {
             if (!this.textCache.has(section)) {
-                const text = findAll(".diff.unified td.code .cc", section).map(cell => cell.textContent).join("\n");
+                const text = findAll(".diff.unified td.code .cc", section)
+                    .map((cell) => cell.textContent)
+                    .join("\n");
                 this.textCache.set(section, text.toLowerCase());
             }
             return this.textCache.get(section);
@@ -457,7 +615,8 @@
         collectHits(query) {
             const selector = ".diff." + activeLayout() + " td.code .cc";
             for (const section of sections) {
-                if (section.dataset.view !== currentView || section.hidden) continue;
+                if (section.dataset.view !== currentView || section.hidden)
+                    continue;
                 for (const cell of findAll(selector, section)) {
                     if (cell.textContent.toLowerCase().includes(query)) {
                         const row = cell.closest("tr");
@@ -470,7 +629,7 @@
         },
 
         markHits() {
-            findAll("tr.hit").forEach(row => row.classList.remove("hit"));
+            findAll("tr.hit").forEach((row) => row.classList.remove("hit"));
             this.rows = [];
             this.index = -1;
 
@@ -479,12 +638,15 @@
             if (isSearching) this.collectHits(query);
 
             const count = this.rows.length;
-            find("#hits").textContent = isSearching ? `${count} match${count === 1 ? "" : "es"}` : "";
+            find("#hits").textContent = isSearching
+                ? `${count} match${count === 1 ? "" : "es"}`
+                : "";
         },
 
         jump(direction) {
             if (!this.rows.length) return;
-            this.index = (this.index + direction + this.rows.length) % this.rows.length;
+            this.index =
+                (this.index + direction + this.rows.length) % this.rows.length;
             const row = this.rows[this.index];
             row.closest("section.file").classList.remove("collapsed");
             row.scrollIntoView({ block: "center" });
@@ -506,30 +668,46 @@
     };
 
     const clickHandlers = [
-        ["td.ln[data-key]", (cell) => {
-            const row = cell.closest("tr");
-            notes.openEditor(row.closest("section.file"), row, cell.dataset.key);
-        }],
+        [
+            "td.ln[data-key]",
+            (cell) => {
+                const row = cell.closest("tr");
+                notes.openEditor(
+                    row.closest("section.file"),
+                    row,
+                    cell.dataset.key
+                );
+            },
+        ],
         [".exp-btn", (button) => context.expand(button)],
-        ["[data-goto]", (link, event) => {
-            event.preventDefault();
-            goTo(link.dataset.view, link.dataset.fkey, link.dataset.key);
-        }],
-        [".cact button, .nact button", (button) => {
-            const id = button.closest("[data-ck]").dataset.ck;
-            const note = review.notes[id];
-            if (!note) return;
-            if (button.dataset.act === "edit") notes.editExisting(note);
-            else notes.remove(sectionFor(note.fkey), id);
-        }],
-        [".fhead", (header, event) => {
-            if (event.target.closest("label")) return;
-            header.closest("section.file").classList.toggle("collapsed");
-        }],
+        [
+            "[data-goto]",
+            (link, event) => {
+                event.preventDefault();
+                goTo(link.dataset.view, link.dataset.fkey, link.dataset.key);
+            },
+        ],
+        [
+            ".cact button, .nact button",
+            (button) => {
+                const id = button.closest("[data-ck]").dataset.ck;
+                const note = review.notes[id];
+                if (!note) return;
+                if (button.dataset.act === "edit") notes.editExisting(note);
+                else notes.remove(sectionFor(note.fkey), id);
+            },
+        ],
+        [
+            ".fhead",
+            (header, event) => {
+                if (event.target.closest("label")) return;
+                header.closest("section.file").classList.toggle("collapsed");
+            },
+        ],
         [".seg button", (button) => layout.set(button.dataset.layout)],
     ];
 
-    const onDocumentClick = event => {
+    const onDocumentClick = (event) => {
         for (const [selector, handle] of clickHandlers) {
             const element = event.target.closest(selector);
             if (!element) continue;
@@ -538,8 +716,13 @@
         }
     };
 
-    const onDocumentChange = event => {
+    const onDocumentChange = (event) => {
         const target = event.target;
+        if (target.matches(".ignore-cb")) {
+            ignored.set(target.closest("section.file"), target.checked);
+            filters.apply();
+            return;
+        }
         if (target.matches(".viewed-cb")) {
             viewed.setSection(target.closest("section.file"), target.checked);
             return;
@@ -551,24 +734,34 @@
     };
 
     const bindFilters = () => {
-        findAll(".chips .chip").forEach(chip => chip.addEventListener("click", () => {
-            const isOn = filters.toggleStatus(chip.dataset.status);
-            chip.classList.toggle("on", isOn);
-            filters.apply();
-        }));
+        findAll(".chips .chip").forEach((chip) =>
+            chip.addEventListener("click", () => {
+                const isOn = filters.toggleStatus(chip.dataset.status);
+                chip.classList.toggle("on", isOn);
+                filters.apply();
+            })
+        );
 
-        const bindToggle = (selector, flag) => find(selector).addEventListener("click", event => {
-            filters[flag] = !filters[flag];
-            event.currentTarget.classList.toggle("on", filters[flag]);
-            filters.apply();
-        });
+        const bindToggle = (selector, flag) =>
+            find(selector).addEventListener("click", (event) => {
+                filters[flag] = !filters[flag];
+                event.currentTarget.classList.toggle("on", filters[flag]);
+                filters.apply();
+            });
         bindToggle("#f-unviewed", "unviewedOnly");
         bindToggle("#f-commented", "commentedOnly");
+        bindToggle("#f-ignored", "ignoredOnly");
 
         find("#collapse-all").addEventListener("click", () =>
-            sectionsInView().forEach(section => section.classList.add("collapsed")));
+            sectionsInView().forEach((section) =>
+                section.classList.add("collapsed")
+            )
+        );
         find("#expand-all").addEventListener("click", () =>
-            sectionsInView().forEach(section => section.classList.remove("collapsed")));
+            sectionsInView().forEach((section) =>
+                section.classList.remove("collapsed")
+            )
+        );
     };
 
     const bindSearch = () => {
@@ -577,13 +770,17 @@
             filters.query = input.value;
             filters.apply();
         });
-        input.addEventListener("keydown", event => {
+        input.addEventListener("keydown", (event) => {
             if (event.key !== "Enter") return;
             event.preventDefault();
             search.jump(event.shiftKey ? -1 : 1);
         });
-        document.addEventListener("keydown", event => {
-            if (event.key !== "/" || TEXT_INPUT_TAGS.test(document.activeElement.tagName)) return;
+        document.addEventListener("keydown", (event) => {
+            if (
+                event.key !== "/" ||
+                TEXT_INPUT_TAGS.test(document.activeElement.tagName)
+            )
+                return;
             event.preventDefault();
             input.focus();
         });
@@ -591,17 +788,25 @@
 
     const bindNotesPanel = () => {
         find("#notes-btn").addEventListener("click", () => notesPanel.toggle());
-        find("#notes-close").addEventListener("click", () => notesPanel.close());
-        find("#notes-copy").addEventListener("click", event => notesPanel.copyMarkdown(event.currentTarget));
-        find("#notes-dl").addEventListener("click", () => notesPanel.downloadMarkdown());
+        find("#notes-close").addEventListener("click", () =>
+            notesPanel.close()
+        );
+        find("#notes-copy").addEventListener("click", (event) =>
+            notesPanel.copyMarkdown(event.currentTarget)
+        );
+        find("#notes-dl").addEventListener("click", () =>
+            notesPanel.downloadMarkdown()
+        );
         find("#notes-clear").addEventListener("click", () => notes.clearAll());
     };
 
     const bindEvents = () => {
-        find("#theme").addEventListener("change", event => theme.set(event.target.value));
+        find("#theme").addEventListener("change", (event) =>
+            theme.set(event.target.value)
+        );
         const tabs = find("#tabs");
         if (tabs) {
-            tabs.addEventListener("click", event => {
+            tabs.addEventListener("click", (event) => {
                 const tab = event.target.closest(".tab");
                 if (tab) views.show(tab.dataset.view);
             });
@@ -622,8 +827,10 @@
             script.src = META.live + "?t=" + Date.now();
             script.onload = () => {
                 script.remove();
-                if (!window.__SCR_STAMP || window.__SCR_STAMP === META.stamp) return;
-                if (find(".cedit textarea")) badge.textContent = " update pending (finish your note)";
+                if (!window.__SCR_STAMP || window.__SCR_STAMP === META.stamp)
+                    return;
+                if (find(".cedit textarea"))
+                    badge.textContent = " update pending (finish your note)";
                 else location.reload();
             };
             script.onerror = () => script.remove();
@@ -633,7 +840,11 @@
 
     const keepToolbarHeightVar = () => {
         const toolbar = find(".toolbar");
-        const update = () => document.documentElement.style.setProperty("--tb", toolbar.offsetHeight + "px");
+        const update = () =>
+            document.documentElement.style.setProperty(
+                "--tb",
+                toolbar.offsetHeight + "px"
+            );
         update();
         window.addEventListener("resize", update);
         if (window.ResizeObserver) new ResizeObserver(update).observe(toolbar);
@@ -641,13 +852,14 @@
 
     const init = () => {
         review.load();
+        ignored.load();
         layout.restore();
         theme.restore();
         viewed.collapseInitial();
         bindEvents();
         startLiveReload();
         keepToolbarHeightVar();
-        sections.forEach(section => notes.renderIn(section));
+        sections.forEach((section) => notes.renderIn(section));
         notesPanel.render();
         filters.apply();
     };

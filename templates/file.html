@@ -1,12 +1,28 @@
-<section class="file" id="{{id}}" data-view="{{view}}" data-fkey="{{fkey}}" data-path="{{path}}"
-    data-status="{{status}}" data-generated="{{generated}}">
+<section
+    class="file"
+    id="{{id}}"
+    data-view="{{view}}"
+    data-fkey="{{fkey}}"
+    data-path="{{path}}"
+    data-status="{{status}}"
+    data-generated="{{generated}}"
+>
     <div class="fhead">
         <span class="caret">▾</span>
         <span class="badge {{status}}">{{status}}</span>
         <span class="fname">{{title}}</span>
         {{tags}}
-        <span class="stat"><b class="p">+{{adds}}</b> <b class="m">−{{dels}}</b></span>
-        <label class="viewed"><input type="checkbox" class="viewed-cb"> Viewed</label>
+        <span class="stat"
+            ><b class="p">+{{adds}}</b> <b class="m">−{{dels}}</b></span
+        >
+        <label
+            class="viewed"
+            title="Hide this file (local only, stays in this browser)"
+            ><input type="checkbox" class="ignore-cb" /> Ignore</label
+        >
+        <label class="viewed"
+            ><input type="checkbox" class="viewed-cb" /> Viewed</label
+        >
     </div>
     <div class="fbody">{{body}}</div>
 </section>

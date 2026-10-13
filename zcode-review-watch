@@ -9,7 +9,9 @@ import time
 from scr_git import OUT_DIR, git
 from scr_report import LIVE_SUFFIX
 
-RENDER_SCRIPT = os.path.join(os.path.dirname(os.path.realpath(__file__)), "zcode-review")
+RENDER_SCRIPT = os.path.join(
+    os.path.dirname(os.path.realpath(__file__)), "zcode-review"
+)
 DEFAULT_INTERVAL_SECONDS = 1.0
 DEBOUNCE_SECONDS = 0.4
 STATUS_PREFIX_LENGTH = 3
@@ -73,26 +75,43 @@ def render(command):
         summary = result.stdout.strip().splitlines()[-1]
         print(f"[{stamp}] {summary}  ({time.time() - started:.1f}s)", flush=True)
         return
-    print(f"[{stamp}] render failed (still watching):\n{result.stderr.strip() or result.stdout.strip()}",
-          file=sys.stderr, flush=True)
+    print(
+        f"[{stamp}] render failed (still watching):\n{result.stderr.strip() or result.stdout.strip()}",
+        file=sys.stderr,
+        flush=True,
+    )
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="Watch git changes and re-render the review into one file.",
-                                     epilog=USAGE, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser = argparse.ArgumentParser(
+        description="Watch git changes and re-render the review into one file.",
+        epilog=USAGE,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     parser.add_argument("file", help="HTML report to (re)write")
-    parser.add_argument("--folder", default=".", help="git repo folder (default: current)")
+    parser.add_argument(
+        "--folder", default=".", help="git repo folder (default: current)"
+    )
     parser.add_argument("--base", help="compare against merge-base(BASE, HEAD)")
     parser.add_argument("--commits", action="store_true", help="add a tab per commit")
-    parser.add_argument("--interval", type=float, default=DEFAULT_INTERVAL_SECONDS,
-                        help="poll interval in seconds (default 1)")
-    parser.add_argument("--no-live", action="store_true", help="don't make the page auto-reload")
+    parser.add_argument(
+        "--interval",
+        type=float,
+        default=DEFAULT_INTERVAL_SECONDS,
+        help="poll interval in seconds (default 1)",
+    )
+    parser.add_argument(
+        "--no-live", action="store_true", help="don't make the page auto-reload"
+    )
     return parser.parse_args()
 
 
 def find_repo(folder):
-    result = subprocess.run(["git", "-C", os.path.abspath(folder), "rev-parse", "--show-toplevel"],
-                            capture_output=True, text=True)
+    result = subprocess.run(
+        ["git", "-C", os.path.abspath(folder), "rev-parse", "--show-toplevel"],
+        capture_output=True,
+        text=True,
+    )
     if result.returncode != 0:
         sys.exit(f"{folder} is not inside a git repository.")
     return result.stdout.strip()

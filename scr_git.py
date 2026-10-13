@@ -13,9 +13,15 @@ LAST_REPORT = "last"
 
 
 def git(repo, *args, check=True, env=None):
-    result = subprocess.run(["git", "-c", "core.quotepath=false", "-C", repo, *args],
-                            capture_output=True, text=True, encoding="utf-8",
-                            errors="replace", env=env)
+    result = subprocess.run(
+        ["git", "-c", "core.quotepath=false", "-C", repo, *args],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        env=env,
+        check=False,
+    )
     if check and result.returncode != 0:
         sys.exit(f"git {' '.join(args)} failed: {result.stderr.strip()}")
     return result.stdout

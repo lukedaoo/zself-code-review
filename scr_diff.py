@@ -63,7 +63,9 @@ class FileDiff:
         return self.old if self.status == Status.DELETED else self.new
 
     def count(self, kind):
-        return sum(1 for hunk in self.hunks for line_kind, _ in hunk.lines if line_kind == kind)
+        return sum(
+            1 for hunk in self.hunks for line_kind, _ in hunk.lines if line_kind == kind
+        )
 
     @property
     def added(self):
@@ -76,12 +78,14 @@ class FileDiff:
 
 def start_file(line):
     match = FILE_HEADER_RE.match(line)
-    return FileDiff(old=match.group(1) if match else "", new=match.group(2) if match else "")
+    return FileDiff(
+        old=match.group(1) if match else "", new=match.group(2) if match else ""
+    )
 
 
 def path_after(line, git_prefix):
     if line.startswith(git_prefix):
-        return line[len(git_prefix):]
+        return line[len(git_prefix) :]
     return line[4:]
 
 
@@ -97,9 +101,9 @@ def apply_header(entry, line):
     elif line.startswith("deleted file mode"):
         entry.status = Status.DELETED
     elif line.startswith("rename from "):
-        entry.status, entry.old = Status.RENAMED, line[len("rename from "):]
+        entry.status, entry.old = Status.RENAMED, line[len("rename from ") :]
     elif line.startswith("rename to "):
-        entry.new = line[len("rename to "):]
+        entry.new = line[len("rename to ") :]
     elif line.startswith("Binary files"):
         entry.binary = True
     elif line.startswith("--- "):
@@ -112,9 +116,13 @@ def apply_header(entry, line):
 
 
 def start_hunk(match, line):
-    return Hunk(header=line,
-                old_start=int(match.group(1)), old_len=int(match.group(2) or 1),
-                new_start=int(match.group(3)), new_len=int(match.group(4) or 1))
+    return Hunk(
+        header=line,
+        old_start=int(match.group(1)),
+        old_len=int(match.group(2) or 1),
+        new_start=int(match.group(3)),
+        new_len=int(match.group(4) or 1),
+    )
 
 
 def parse_diff(text):

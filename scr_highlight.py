@@ -88,7 +88,7 @@ SQL_KEYWORDS = (
 
 @dataclass(frozen=True)
 class Syntax:
-    comment: str = None
+    comment: str = ""
     keywords: str = ""
     strings: str = STRING_PATTERN
     numbers: bool = True
@@ -97,23 +97,43 @@ class Syntax:
 
 SYNTAXES = {
     "c": Syntax(C_COMMENT, C_KEYWORDS, QUOTED_PATTERN, extras=(("k", r"^\s*#\s*\w+"),)),
-    "cpp": Syntax(C_COMMENT, CPP_KEYWORDS, QUOTED_PATTERN, extras=(("k", r"^\s*#\s*\w+"),)),
+    "cpp": Syntax(
+        C_COMMENT, CPP_KEYWORDS, QUOTED_PATTERN, extras=(("k", r"^\s*#\s*\w+"),)
+    ),
     "go": Syntax(C_COMMENT, GO_KEYWORDS),
-    "zig": Syntax(SLASH_COMMENT, ZIG_KEYWORDS, QUOTED_PATTERN,
-                  extras=(("k", r"@\w+"), ("s", r"\\\\.*"))),
-    "py": Syntax(HASH_COMMENT, PYTHON_KEYWORDS, TRIPLE_QUOTED_PATTERN + "|" + QUOTED_PATTERN,
-                 extras=(("k", r"^\s*@[\w.]+"),)),
+    "zig": Syntax(
+        SLASH_COMMENT,
+        ZIG_KEYWORDS,
+        QUOTED_PATTERN,
+        extras=(("k", r"@\w+"), ("s", r"\\\\.*")),
+    ),
+    "py": Syntax(
+        HASH_COMMENT,
+        PYTHON_KEYWORDS,
+        TRIPLE_QUOTED_PATTERN + "|" + QUOTED_PATTERN,
+        extras=(("k", r"^\s*@[\w.]+"),),
+    ),
     "clike": Syntax(C_COMMENT, CLIKE_KEYWORDS),
     "lua": Syntax(r"--.*", LUA_KEYWORDS, QUOTED_PATTERN),
     "hash": Syntax(HASH_COMMENT, HASH_KEYWORDS),
     "dockerfile": Syntax(HASH_COMMENT, DOCKER_KEYWORDS),
     "sql": Syntax(r"--.*", SQL_KEYWORDS),
-    "json": Syntax(None, "true false null"),
+    "json": Syntax("", "true false null"),
     "css": Syntax(BLOCK_COMMENT, ""),
-    "html": Syntax(r"<!--.*?(?:-->|$)", "", TERMINATED_PATTERN, numbers=False,
-                   extras=(("k", r"</?[\w:-]+"),)),
-    "markdown": Syntax(None, "", None, numbers=False,
-                       extras=(("k", r"^\s{0,3}#{1,6}\s.*"), ("s", r"`[^`]+`"))),
+    "html": Syntax(
+        r"<!--.*?(?:-->|$)",
+        "",
+        TERMINATED_PATTERN,
+        numbers=False,
+        extras=(("k", r"</?[\w:-]+"),),
+    ),
+    "markdown": Syntax(
+        "",
+        "",
+        "",
+        numbers=False,
+        extras=(("k", r"^\s{0,3}#{1,6}\s.*"), ("s", r"`[^`]+`")),
+    ),
     "generic": Syntax(GENERIC_COMMENT, "", DOUBLE_QUOTED_PATTERN),
 }
 
@@ -137,20 +157,26 @@ EXTENSIONS = {
 PLAIN_EXTENSIONS = ("txt", "log")
 GENERIC_LANGUAGE = "generic"
 
-LANGUAGE_BY_EXTENSION = {ext: lang for lang, exts in EXTENSIONS.items() for ext in exts.split()}
+LANGUAGE_BY_EXTENSION = {
+    ext: lang for lang, exts in EXTENSIONS.items() for ext in exts.split()
+}
 
 
 def build_tokenizer(syntax):
     parts = []
     if syntax.comment:
         parts.append(f"(?P<c>{syntax.comment})")
-    parts += [f"(?P<{kind}_{index}>{pattern})" for index, (kind, pattern) in enumerate(syntax.extras)]
+    parts += [
+        f"(?P<{kind}_{index}>{pattern})"
+        for index, (kind, pattern) in enumerate(syntax.extras)
+    ]
     if syntax.strings:
         parts.append(f"(?P<s>{syntax.strings})")
     if syntax.numbers:
         parts.append(f"(?P<n>{NUMBER_PATTERN})")
     if syntax.keywords:
-        parts.append(r"(?P<k>\b(?:%s)\b)" % "|".join(syntax.keywords.split()))
+        keywords = "|".join(syntax.keywords.split())
+        parts.append(rf"(?P<k>\b(?:{keywords})\b)")
     return re.compile("|".join(parts))
 
 
@@ -170,12 +196,15 @@ def language_of(path):
 
 
 def token_kinds(text, lang):
-    kinds = [None] * len(text)
+    kinds: list[str | None] = [None] * len(text)
     tokenizer = TOKENIZERS.get(lang)
     if not tokenizer:
         return kinds
     for match in tokenizer.finditer(text):
-        kinds[match.start():match.end()] = [match.lastgroup[0]] * (match.end() - match.start())
+        if match.lastgroup is not None:
+            kinds[match.start() : match.end()] = [match.lastgroup[0]] * (
+                match.end() - match.start()
+            )
     return kinds
 
 
@@ -206,6 +235,6 @@ def render_line(text, lang, marks=()):
     segments, position = [], 0
     for (kind, marked), run in groupby(zip(kinds, flags)):
         length = len(list(run))
-        segments.append(wrap_segment(text[position:position + length], kind, marked))
+        segments.append(wrap_segment(text[position : position + length], kind, marked))
         position += length
     return "".join(segments)

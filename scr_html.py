@@ -20,4 +20,6 @@ def load_template(name):
 
 
 def fill(template, **values):
-    return PLACEHOLDER_RE.sub(lambda match: values.get(match.group(1), match.group(0)), template)
+    return PLACEHOLDER_RE.sub(
+        lambda match: values.get(match.group(1), match.group(0)), template
+    )

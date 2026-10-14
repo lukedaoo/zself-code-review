@@ -316,8 +316,8 @@ def render_body(file_diff, file_id, source_len, lang, ext, findings):
 
 def render_nav_link(file_id, file_key, path, file_diff):
     return (
-        f'<a href="#{file_id}" class="navlink" data-fkey="{esc(file_key)}" data-status="{file_diff.status}">'
-        f'<span class="vd">✓</span><span class="nn">{esc(path)}</span>'
+        f'<a href="#{file_id}" class="navlink" title="{esc(path)}" data-fkey="{esc(file_key)}" data-status="{file_diff.status}">'
+        f'<span class="vd">✓</span><span class="nn">{esc(os.path.basename(path))}</span>'
         f'<span class="s"><b class="p">+{file_diff.added}</b> <b class="m">−{file_diff.removed}</b></span></a>'
     )
 
@@ -377,6 +377,37 @@ def render_file(view, index, file_diff, repo, expand, template):
     )
 
 
+class NavNode:
+    def __init__(self):
+        self.dirs = {}
+        self.links = []
+
+
+def render_nav_node(node):
+    parts = []
+    for name, child in sorted(node.dirs.items()):
+        while not child.links and len(child.dirs) == 1:
+            (sub_name, child), = child.dirs.items()
+            name = f"{name}/{sub_name}"
+        parts.append(
+            f'<details class="navdir" open><summary class="navdir-name">{esc(name)}</summary>'
+            f'<div class="navchildren">{render_nav_node(child)}</div></details>'
+        )
+    return "".join(parts) + "".join(node.links)
+
+
+def render_nav_tree(files, rendered):
+    root = NavNode()
+    for file_diff, item in zip(files, rendered):
+        node = root
+        directory = os.path.dirname(file_diff.path)
+        for part in filter(None, directory.split("/")):
+            node = node.dirs.setdefault(part, NavNode())
+        node.links.append(item.nav)
+
+    return render_nav_node(root)
+
+
 def build_view(view, files, repo, expand, template):
     rendered = [
         render_file(view, index, file_diff, repo, expand, template)
@@ -388,7 +419,7 @@ def build_view(view, files, repo, expand, template):
         removed=sum(item.removed for item in rendered),
         html="".join(item.html for item in rendered)
         or '<div class="empty">No changes to review.</div>',
-        nav="".join(item.nav for item in rendered),
+        nav=render_nav_tree(files, rendered),
         findings=[finding for item in rendered for finding in item.findings],
         sources=dict(item.source for item in rendered if item.source),
     )

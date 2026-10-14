@@ -625,6 +625,9 @@
                 const link = navLinkFor(section);
                 if (link) link.hidden = !isVisible;
             }
+            findAll(".navdir").forEach((dir) => {
+                dir.hidden = !find(".navlink:not([hidden])", dir);
+            });
             search.markHits();
             viewed.updateProgress();
             ignored.updateCount();

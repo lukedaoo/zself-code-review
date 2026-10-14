@@ -1,41 +1,41 @@
 name: Deploy example review
 
 on:
-  push:
-    branches: [main]
-  workflow_dispatch:
+    push:
+        branches: [main]
+    workflow_dispatch:
 
 permissions:
-  contents: read
-  pages: write
-  id-token: write
+    contents: read
+    pages: write
+    id-token: write
 
 concurrency:
-  group: pages
-  cancel-in-progress: true
+    group: pages
+    cancel-in-progress: true
 
 jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 2
+    deploy:
+        runs-on: ubuntu-latest
+        environment:
+            name: github-pages
+            url: ${{ steps.deployment.outputs.page_url }}
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  fetch-depth: 2
 
-      - name: Render review of the last commit
-        run: |
-          previous=$(git rev-parse -q --verify HEAD~1 || git hash-object -t tree /dev/null)
-          mkdir -p _site
-          ./zcode-review --since "$previous" --output _site/index.html
+            - name: Render review of the last commit
+              run: |
+                  previous=$(git rev-parse -q --verify HEAD~1 || git hash-object -t tree /dev/null)
+                  mkdir -p _site
+                  ./zcode-review --since "$previous" --output _site/index.html
 
-      - uses: actions/configure-pages@v5
+            - uses: actions/configure-pages@v5
 
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: _site
+            - uses: actions/upload-pages-artifact@v3
+              with:
+                  path: _site
 
-      - id: deployment
-        uses: actions/deploy-pages@v4
+            - id: deployment
+              uses: actions/deploy-pages@v4

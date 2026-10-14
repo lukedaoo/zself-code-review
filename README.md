@@ -40,6 +40,7 @@ zcode-review-watch review.html
 ```
 
 In the report you can:
+
 - switch unified / split view, pick a color theme
 - filter files by status, viewed, or notes; search code (`/`)
 - expand hidden context around a hunk

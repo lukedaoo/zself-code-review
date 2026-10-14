@@ -380,6 +380,18 @@ body[data-nav="hidden"] nav {
     display: none;
 }
 
+.navdir-name {
+    padding: 6px 6px 2px;
+    color: var(--muted);
+    font-weight: 600;
+    word-break: break-all;
+    cursor: pointer;
+}
+
+.navchildren {
+    padding-left: 12px;
+}
+
 .navlink {
     display: flex;
     gap: 6px;
